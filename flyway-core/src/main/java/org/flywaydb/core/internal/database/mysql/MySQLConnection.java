@@ -45,7 +45,7 @@ public class MySQLConnection extends Connection<MySQLDatabase> {
     private final int originalForeignKeyChecks;
     private final int originalSqlSafeUpdates;
 
-    MySQLConnection(MySQLDatabase database, java.sql.Connection connection) {
+    public MySQLConnection(MySQLDatabase database, java.sql.Connection connection) {
         super(database, connection);
 
         userVariablesQuery = "SELECT variable_name FROM "
@@ -155,9 +155,13 @@ public class MySQLConnection extends Connection<MySQLDatabase> {
 
     @Override
     public <T> T lock(Table table, Callable<T> callable) {
-        if (database.isPxcStrict()) {
-            return super.lock(table, callable);
+        if (canUseNamedLockTemplate()) {
+            return new MySQLNamedLockTemplate(jdbcTemplate, table.toString().hashCode()).execute(callable);
         }
-        return new MySQLNamedLockTemplate(jdbcTemplate, table.toString().hashCode()).execute(callable);
+        return super.lock(table, callable);
+    }
+
+    protected boolean canUseNamedLockTemplate() {
+        return !database.isPxcStrict();
     }
 }

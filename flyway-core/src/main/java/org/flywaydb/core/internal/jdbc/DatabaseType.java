@@ -40,6 +40,7 @@ public enum DatabaseType {
     HSQLDB("HSQLDB", Types.VARCHAR, true),
     INFORMIX("Informix", Types.VARCHAR, true),
     MARIADB("MariaDB", Types.VARCHAR, true),
+    TIDB("TiDB", Types.VARCHAR, true),
     MYSQL("MySQL", Types.VARCHAR, true),
     ORACLE("Oracle", Types.VARCHAR, true),
     POSTGRESQL("PostgreSQL", Types.NULL, true),
@@ -88,6 +89,14 @@ public enum DatabaseType {
         }
         if (databaseProductName.startsWith("Microsoft SQL Server")) {
             return SQLSERVER;
+        }
+
+        if (databaseProductName.startsWith("TiDB")
+                // Older versions of the driver report MariaDB as "MySQL"
+                || (databaseProductName.contains("MySQL") && databaseProductVersion.contains("TiDB"))
+                // Azure Database For MariaDB reports as "MySQL"
+                || (databaseProductName.contains("MySQL") && getSelectVersionOutput(connection).contains("TiDB"))) {
+            return TIDB;
         }
 
         // #2289: MariaDB JDBC driver 2.4.0 and newer report MariaDB as "MariaDB"

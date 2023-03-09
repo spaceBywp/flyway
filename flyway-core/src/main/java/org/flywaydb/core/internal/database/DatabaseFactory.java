@@ -39,6 +39,7 @@ import org.flywaydb.core.internal.database.informix.InformixDatabase;
 import org.flywaydb.core.internal.database.informix.InformixParser;
 import org.flywaydb.core.internal.database.mysql.MySQLDatabase;
 import org.flywaydb.core.internal.database.mysql.MySQLParser;
+import org.flywaydb.core.internal.database.mysql.tidb.TiDBDatabase;
 import org.flywaydb.core.internal.database.oracle.OracleDatabase;
 import org.flywaydb.core.internal.database.oracle.OracleParser;
 import org.flywaydb.core.internal.database.oracle.OracleSqlScriptExecutor;
@@ -175,6 +176,8 @@ public class DatabaseFactory {
 
 
                 );
+            case TIDB:
+                return new TiDBDatabase(configuration, jdbcConnectionFactory);
             case MARIADB:
             case MYSQL:
                 return new MySQLDatabase(configuration, jdbcConnectionFactory

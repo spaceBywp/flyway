@@ -23,6 +23,22 @@ import org.flywaydb.core.api.logging.Log;
 import org.flywaydb.core.api.logging.LogFactory;
 import org.flywaydb.core.internal.database.base.Database;
 import org.flywaydb.core.internal.database.base.Table;
+import org.flywaydb.core.internal.database.cockroachdb.CockroachDBDatabase;
+import org.flywaydb.core.internal.database.db2.DB2Database;
+import org.flywaydb.core.internal.database.derby.DerbyDatabase;
+import org.flywaydb.core.internal.database.firebird.FirebirdDatabase;
+import org.flywaydb.core.internal.database.h2.H2Database;
+import org.flywaydb.core.internal.database.hsqldb.HSQLDBDatabase;
+import org.flywaydb.core.internal.database.informix.InformixDatabase;
+import org.flywaydb.core.internal.database.mysql.tidb.TiDBDatabase;
+import org.flywaydb.core.internal.database.oracle.OracleDatabase;
+import org.flywaydb.core.internal.database.postgresql.PostgreSQLDatabase;
+import org.flywaydb.core.internal.database.redshift.RedshiftDatabase;
+import org.flywaydb.core.internal.database.saphana.SAPHANADatabase;
+import org.flywaydb.core.internal.database.snowflake.SnowflakeDatabase;
+import org.flywaydb.core.internal.database.sqlite.SQLiteDatabase;
+import org.flywaydb.core.internal.database.sqlserver.SQLServerDatabase;
+import org.flywaydb.core.internal.database.sybasease.SybaseASEDatabase;
 import org.flywaydb.core.internal.exception.FlywaySqlException;
 import org.flywaydb.core.internal.jdbc.DatabaseType;
 import org.flywaydb.core.internal.jdbc.JdbcConnectionFactory;
@@ -67,18 +83,19 @@ public class MySQLDatabase extends Database<MySQLConnection> {
     public MySQLDatabase(Configuration configuration, JdbcConnectionFactory jdbcConnectionFactory
 
 
-
     ) {
         super(configuration, jdbcConnectionFactory
-
 
 
         );
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(rawMainJdbcConnection, databaseType);
-        pxcStrict = isMySQL() && isRunningInPerconaXtraDBClusterWithStrictMode(jdbcTemplate);
-        gtidConsistencyEnforced = isMySQL() && isRunningInGTIDConsistencyMode(jdbcTemplate);
-        eventSchedulerQueryable = isMySQL() || isEventSchedulerQueryable(jdbcTemplate);
+
+
+        pxcStrict = isTiDB() ? !isTiDB() : isMySQL() && isRunningInPerconaXtraDBClusterWithStrictMode(jdbcTemplate);
+        gtidConsistencyEnforced = isTiDB() ? isTiDB() && isRunningInGTIDConsistencyMode(jdbcTemplate) : isMySQL() && isRunningInGTIDConsistencyMode(jdbcTemplate);
+        eventSchedulerQueryable = isTiDB() ? isTiDB() && isRunningInGTIDConsistencyMode(jdbcTemplate) : isMySQL() || isEventSchedulerQueryable(jdbcTemplate);
+
     }
 
     private static boolean isEventSchedulerQueryable(JdbcTemplate jdbcTemplate) {
@@ -94,9 +111,7 @@ public class MySQLDatabase extends Database<MySQLConnection> {
 
     static boolean isRunningInPerconaXtraDBClusterWithStrictMode(JdbcTemplate jdbcTemplate) {
         try {
-            if ("ENFORCING".equals(jdbcTemplate.queryForString(
-                    "select VARIABLE_VALUE from performance_schema.global_variables"
-                            + " where variable_name = 'pxc_strict_mode'"))) {
+            if ("ENFORCING".equals(jdbcTemplate.queryForString("select VARIABLE_VALUE from performance_schema.global_variables" + " where variable_name = 'pxc_strict_mode'"))) {
                 LOG.debug("Detected Percona XtraDB Cluster in strict mode");
                 return true;
             }
@@ -107,7 +122,7 @@ public class MySQLDatabase extends Database<MySQLConnection> {
         return false;
     }
 
-   static boolean isRunningInGTIDConsistencyMode(JdbcTemplate jdbcTemplate) {
+    static boolean isRunningInGTIDConsistencyMode(JdbcTemplate jdbcTemplate) {
         try {
             String gtidConsistency = jdbcTemplate.queryForString("SELECT @@GLOBAL.ENFORCE_GTID_CONSISTENCY");
             if ("ON".equals(gtidConsistency)) {
@@ -125,6 +140,10 @@ public class MySQLDatabase extends Database<MySQLConnection> {
         return databaseType == DatabaseType.MYSQL;
     }
 
+    boolean isTiDB() {
+        return databaseType == DatabaseType.TIDB;
+    }
+
     boolean isMariaDB() {
         return databaseType == DatabaseType.MARIADB;
     }
@@ -139,14 +158,13 @@ public class MySQLDatabase extends Database<MySQLConnection> {
      * - When GTID consistency is being enforced. Note that if GTID_MODE is ON, then ENFORCE_GTID_CONSISTENCY is
      * necessarily ON as well.
      */
-    private boolean isCreateTableAsSelectAllowed() {
+    protected boolean isCreateTableAsSelectAllowed() {
         return !pxcStrict && !gtidConsistencyEnforced;
     }
 
     @Override
     public String getRawCreateScript(Table table, boolean baseline) {
         String tablespace =
-
 
 
                         configuration.getTablespace() == null
@@ -156,17 +174,7 @@ public class MySQLDatabase extends Database<MySQLConnection> {
         String baselineMarker = "";
         if (baseline) {
             if (isCreateTableAsSelectAllowed()) {
-                baselineMarker = " AS SELECT" +
-                        "     1 as \"installed_rank\"," +
-                        "     '" + configuration.getBaselineVersion() + "' as \"version\"," +
-                        "     '" + configuration.getBaselineDescription() + "' as \"description\"," +
-                        "     '" + MigrationType.BASELINE + "' as \"type\"," +
-                        "     '" + configuration.getBaselineDescription() + "' as \"script\"," +
-                        "     NULL as \"checksum\"," +
-                        "     '" + getInstalledBy() + "' as \"installed_by\"," +
-                        "     CURRENT_TIMESTAMP as \"installed_on\"," +
-                        "     0 as \"execution_time\"," +
-                        "     TRUE as \"success\"\n";
+                baselineMarker = " AS SELECT" + "     1 as \"installed_rank\"," + "     '" + configuration.getBaselineVersion() + "' as \"version\"," + "     '" + configuration.getBaselineDescription() + "' as \"description\"," + "     '" + MigrationType.BASELINE + "' as \"type\"," + "     '" + configuration.getBaselineDescription() + "' as \"script\"," + "     NULL as \"checksum\"," + "     '" + getInstalledBy() + "' as \"installed_by\"," + "     CURRENT_TIMESTAMP as \"installed_on\"," + "     0 as \"execution_time\"," + "     TRUE as \"success\"\n";
             } else {
                 // Revert to regular insert, which unfortunately is not safe in concurrent scenarios
                 // due to MySQL implicit commits after DDL statements.
@@ -174,22 +182,7 @@ public class MySQLDatabase extends Database<MySQLConnection> {
             }
         }
 
-        return "CREATE TABLE " + table + " (\n" +
-                "    `installed_rank` INT NOT NULL,\n" +
-                "    `version` VARCHAR(50),\n" +
-                "    `description` VARCHAR(200) NOT NULL,\n" +
-                "    `type` VARCHAR(20) NOT NULL,\n" +
-                "    `script` VARCHAR(1000) NOT NULL,\n" +
-                "    `checksum` INT,\n" +
-                "    `installed_by` VARCHAR(100) NOT NULL,\n" +
-                "    `installed_on` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n" +
-                "    `execution_time` INT NOT NULL,\n" +
-                "    `success` BOOL NOT NULL,\n" +
-                "    CONSTRAINT `" + table.getName() + "_pk` PRIMARY KEY (`installed_rank`)\n" +
-                ")" + tablespace + " ENGINE=InnoDB" +
-                baselineMarker +
-                ";\n" +
-                "CREATE INDEX `" + table.getName() + "_s_idx` ON " + table + " (`success`);";
+        return "CREATE TABLE " + table + " (\n" + "    `installed_rank` INT NOT NULL,\n" + "    `version` VARCHAR(50),\n" + "    `description` VARCHAR(200) NOT NULL,\n" + "    `type` VARCHAR(20) NOT NULL,\n" + "    `script` VARCHAR(1000) NOT NULL,\n" + "    `checksum` INT,\n" + "    `installed_by` VARCHAR(100) NOT NULL,\n" + "    `installed_on` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n" + "    `execution_time` INT NOT NULL,\n" + "    `success` BOOL NOT NULL,\n" + "    CONSTRAINT `" + table.getName() + "_pk` PRIMARY KEY (`installed_rank`)\n" + ")" + tablespace + " ENGINE=InnoDB" + baselineMarker + ";\n" + "CREATE INDEX `" + table.getName() + "_s_idx` ON " + table + " (`success`);";
     }
 
     @Override
@@ -222,7 +215,7 @@ public class MySQLDatabase extends Database<MySQLConnection> {
      */
     static MigrationVersion correctForMySQLWithBadMetadata(MigrationVersion jdbcMetadataVersion, String selectVersionOutput) {
         if (selectVersionOutput.compareTo("5.7") >= 0 && jdbcMetadataVersion.toString().compareTo("5.7") < 0) {
-            LOG.debug("MySQL-based database - reporting v" + jdbcMetadataVersion.toString() +" in JDBC metadata but database actually v" + selectVersionOutput);
+            LOG.debug("MySQL-based database - reporting v" + jdbcMetadataVersion.toString() + " in JDBC metadata but database actually v" + selectVersionOutput);
             return extractVersionFromString(selectVersionOutput, MYSQL_VERSION_PATTERN);
         }
         return jdbcMetadataVersion;
@@ -257,25 +250,6 @@ public class MySQLDatabase extends Database<MySQLConnection> {
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     @Override
     public final void ensureSupported() {
         ensureDatabaseIsRecentEnough("5.1");
@@ -292,14 +266,9 @@ public class MySQLDatabase extends Database<MySQLConnection> {
             ensureDatabaseNotOlderThanOtherwiseRecommendUpgradeToFlywayEdition("5.7", org.flywaydb.core.internal.license.Edition.ENTERPRISE);
 
 
-
-
-                if (JdbcUtils.getDriverName(jdbcMetaData).contains("MariaDB")) {
-                    LOG.warn("You are connected to a MySQL " + getVersion() + " database using the MariaDB driver." +
-                            " This is known to cause issues." +
-                            " An upgrade to Oracle's MySQL JDBC driver is highly recommended.");
-                }
-
+            if (JdbcUtils.getDriverName(jdbcMetaData).contains("MariaDB")) {
+                LOG.warn("You are connected to a MySQL " + getVersion() + " database using the MariaDB driver." + " This is known to cause issues." + " An upgrade to Oracle's MySQL JDBC driver is highly recommended.");
+            }
 
 
             recommendFlywayUpgradeIfNecessary("8.0");
