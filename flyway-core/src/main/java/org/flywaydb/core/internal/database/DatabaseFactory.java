@@ -302,6 +302,7 @@ public class DatabaseFactory {
             case INFORMIX:
                 return new InformixParser(configuration, parsingContext);
             case MARIADB:
+            case TIDB:
             case MYSQL:
                 return new MySQLParser(configuration, parsingContext);
             case ORACLE:
