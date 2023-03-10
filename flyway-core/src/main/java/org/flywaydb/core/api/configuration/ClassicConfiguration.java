@@ -313,7 +313,7 @@ public class ClassicConfiguration implements Configuration {
     /**
      * The version to tag an existing schema with when executing baseline. (default: 1)
      */
-    private MigrationVersion baselineVersion = MigrationVersion.fromVersion("1");
+    private MigrationVersion baselineVersion = MigrationVersion.fromVersion("1.0.0.0");
 
     /**
      * The description to tag an existing schema with when executing baseline. (default: &lt;&lt; Flyway Baseline &gt;&gt;)
