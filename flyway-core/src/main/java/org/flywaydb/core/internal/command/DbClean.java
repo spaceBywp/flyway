@@ -93,44 +93,44 @@ public class DbClean {
      * @throws FlywayException when clean failed.
      */
     public void clean() throws FlywayException {
-        if (cleanDisabled) {
-            throw new FlywayException("Unable to execute clean as it has been disabled with the \"flyway.cleanDisabled\" property.");
-        }
-        callbackExecutor.onEvent(Event.BEFORE_CLEAN);
-
-        try {
-            connection.changeCurrentSchemaTo(schemas[0]);
-            boolean dropSchemas = false;
-            try {
-                dropSchemas = schemaHistory.hasSchemasMarker();
-            } catch (Exception e) {
-                LOG.error("Error while checking whether the schemas should be dropped", e);
-            }
-
-            dropDatabaseObjectsPreSchemas();
-
-            for (Schema schema : schemas) {
-                if (!schema.exists()) {
-                    LOG.warn("Unable to clean unknown schema: " + schema);
-                    continue;
-                }
-
-                if (dropSchemas) {
-                    dropSchema(schema);
-                } else {
-                    cleanSchema(schema);
-                }
-            }
-
-            dropDatabaseObjectsPostSchemas();
-
-        } catch (FlywayException e) {
-            callbackExecutor.onEvent(Event.AFTER_CLEAN_ERROR);
-            throw e;
-        }
-
-        callbackExecutor.onEvent(Event.AFTER_CLEAN);
-        schemaHistory.clearCache();
+//        if (cleanDisabled) {
+//            throw new FlywayException("Unable to execute clean as it has been disabled with the \"flyway.cleanDisabled\" property.");
+//        }
+//        callbackExecutor.onEvent(Event.BEFORE_CLEAN);
+//
+//        try {
+//            connection.changeCurrentSchemaTo(schemas[0]);
+//            boolean dropSchemas = false;
+//            try {
+//                dropSchemas = schemaHistory.hasSchemasMarker();
+//            } catch (Exception e) {
+//                LOG.error("Error while checking whether the schemas should be dropped", e);
+//            }
+//
+//            dropDatabaseObjectsPreSchemas();
+//
+//            for (Schema schema : schemas) {
+//                if (!schema.exists()) {
+//                    LOG.warn("Unable to clean unknown schema: " + schema);
+//                    continue;
+//                }
+//
+//                if (dropSchemas) {
+//                    dropSchema(schema);
+//                } else {
+//                    cleanSchema(schema);
+//                }
+//            }
+//
+//            dropDatabaseObjectsPostSchemas();
+//
+//        } catch (FlywayException e) {
+//            callbackExecutor.onEvent(Event.AFTER_CLEAN_ERROR);
+//            throw e;
+//        }
+//
+//        callbackExecutor.onEvent(Event.AFTER_CLEAN);
+//        schemaHistory.clearCache();
     }
 
     /**
